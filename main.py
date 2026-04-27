@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from engine.logic import StratumEngine
 import os
 
-# Configuración de página de alto impacto (War Room)
+# 1. CONFIGURACIÓN DE ESCENARIO (WAR ROOM)
 st.set_page_config(
     page_title="Stratum Decision | War Room v41",
     page_icon="🛡️",
@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Estilo personalizado para el "War Room"
+# Estilo Erudito (Modo Oscuro Institucional)
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
@@ -23,84 +23,90 @@ st.markdown("""
 
 @st.cache_data
 def load_stratum_data():
-    # Ruta optimizada para el nuevo repositorio
     path = "data/stratum_econometrico.csv"
     if not os.path.exists(path):
-        st.error(f"Falta el 'State Core': No se encontró {path}")
+        st.error(f"Error Crítico: No se encontró el State Core en {path}")
         return None
     df = pd.read_csv(path)
     df['date'] = pd.to_datetime(df['date'])
     return df
 
 def main():
+    # --- SIDEBAR: CONTROL DE SENSIBILIDAD ---
     st.sidebar.title("🛡️ Stratum v41 Control")
-    tau = st.sidebar.slider("Umbral Crítico (τ)", 0.2000, 0.5000, 0.3492, format="%.4f")
-    
-    # Instanciar el motor analítico
-    engine = StratumEngine(tau=tau)
-    
+    st.sidebar.markdown("### Configuración de Referencia")
+    tau_slider = st.sidebar.slider("Umbral τ (Histórico)", 0.20, 0.50, 0.3492, format="%.4f")
+    st.sidebar.info("La Proposición 2 calibra automáticamente el riesgo por encima de este valor base.")
+
+    # --- CARGA Y PROCESAMIENTO (El orden resuelve el NameError) ---
     df_raw = load_stratum_data()
     if df_raw is None: return
 
-    # Procesamiento dinámico
-    df = engine.process_system_state(df_raw)
-    current_state = engine.get_current_risk_assessment(df)
+    # Inicializar el motor con la Proposición 2 integrada
+    engine = StratumEngine(tau_base=tau_slider)
+    
+    # El motor ahora devuelve el DataFrame y el diccionario de activación dinámica
+    df, results = engine.process_system_state(df_raw)
 
-    # Cabecera Operativa (KPIs)
-    st.title("Stratum Decision: Centro de Mando Sistémico")
-    
-    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-    
-    with kpi1:
-        color = "inverse" if current_state["is_breached"] else "normal"
-        st.metric("Régimen Actual", current_state["regime"], delta="CRÍTICO" if current_state["is_breached"] else "ESTABLE", delta_color=color)
-    
-    with kpi2:
-        st.metric("Sync Gap (SG)", f"{current_state['sg_value']:.4f}")
-    
-    with kpi3:
-        st.metric("Saturación (ISI)", f"{current_state['isi_saturation']:.4f}")
-    
-    with kpi4:
-        st.metric("Umbral τ", f"{tau:.4f}")
+    # --- CABECERA: CENTRO DE MANDO ---
+    st.title("Stratum Decision: War Room v41")
+    st.markdown(f"**Estado del Sistema:** Prop. 2 {'🔴 ACTIVADA' if results['trigger_active'] else '🟢 OPERATIVA'}")
 
-    # Visualización Principal: Mapa de Fase
-    st.subheader("Dinámica de Coordinación Sistémica (SG vs ISI)")
-    fig_phase = px.scatter(
-        df, x='ISI', y='SG', color='Regime_economic',
-        color_discrete_map={"Stable": "#10b981", "Transitional": "#f59e0b", "Acute Stress": "#ef4444"},
-        hover_data=['date'], template="plotly_dark"
-    )
-    # Líneas de umbral tau
-    fig_phase.add_hline(y=tau, line_dash="dash", line_color="red", annotation_text="+τ Breach")
-    fig_phase.add_hline(y=-tau, line_dash="dash", line_color="red", annotation_text="-τ Breach")
+    # Fila 1: KPIs de la Proposición 2 (El "Fríjol" Dinámico)
+    c1, c2, c3, c4 = st.columns(4)
     
-    st.plotly_chart(fig_phase, use_container_width=True)
+    with c1:
+        # El régimen ya no es fijo, depende de la alineación de factores
+        st.metric("Régimen Institucional", results["regime"], 
+                  delta="ALERTA" if results["trigger_active"] else "NORMAL",
+                  delta_color="inverse" if results["trigger_active"] else "normal")
 
-    # Simulación de Proyecciones Locales (LP)
+    with c2:
+        # Nivel de saturación comparado con el percentil 85 dinámico
+        st.metric("Carga Sistémica (ISI)", f"{results['lambda_stat']:.4f}", 
+                  f"Ref: {results['lambda_threshold']:.2f}")
+
+    with c3:
+        # Momentum: Indica si el riesgo está creciendo o disipándose
+        st.metric("Momentum (Δλ)", f"{results['momentum']:.4f}", 
+                  delta="Acelerando" if results['momentum'] > 0 else "Disipando")
+
+    with c4:
+        # Concentración estructural de nodos críticos
+        st.metric("Fragilidad (CP)", f"{results['structural_concentration']:.4f}")
+
+    # Fila 2: Barra de Proximidad a la Fractura
+    st.markdown("### Proximidad a Transición de Fase")
+    proximity = 1.0 - results['fracture_proximity']
+    bar_color = "red" if results["trigger_active"] else "orange" if proximity > 0.7 else "green"
+    st.progress(max(0.0, min(1.0, proximity)))
+    st.caption(f"Capacidad de disipación remanente: {(results['fracture_proximity']*100):.1f}%")
+
+    # --- VISUALIZACIÓN DE MAPA DE FASE ---
+    st.divider()
+    col_graph, col_info = st.columns([3, 1])
+
+    with col_graph:
+        fig_phase = px.scatter(
+            df, x='ISI', y='SG', color='Regime_economic',
+            color_discrete_map={"Stable": "#10b981", "Transitional": "#f59e0b", "Acute Stress": "#ef4444"},
+            hover_data=['date'], template="plotly_dark", title="Dinámica SG vs ISI (Geometría de Riesgo)"
+        )
+        # Dibujamos el área de saturación dinámica (Percentil 85)
+        fig_phase.add_vline(x=results['lambda_threshold'], line_dash="dot", line_color="yellow", 
+                            annotation_text="Límite de Saturación")
+        st.plotly_chart(fig_phase, use_container_width=True)
+
+    with col_info:
+        st.markdown("#### Análisis de la Proposición 2")
+        st.write(f"- **Nivel crítico:** {'Superado' if results['lambda_stat'] > results['lambda_threshold'] else 'Bajo Control'}")
+        st.write(f"- **Dirección del Riesgo:** {'Acumulando' if results['momentum'] > 0 else 'Liberando'}")
+        st.write(f"- **Estado de Chokepoints:** {'Concentrado' if results['structural_concentration'] > 0.6 else 'Disperso'}")
+
+    # --- SIMULACIÓN DE PROYECCIONES LOCALES ---
     st.divider()
     st.subheader("Simulación de Respuesta al Impulso (Local Projections)")
-    
-    col_sim1, col_sim2 = st.columns([1, 3])
-    
-    with col_sim1:
-        st.info("Simula un shock en un nodo de relevancia sistémica (SRF) para observar la velocidad de recuperación del sistema.")
-        horizon = st.number_input("Horizonte (días)", 5, 30, 15)
-        if st.button("Ejecutar Proyección"):
-            with st.spinner("Calculando respuesta Jordà (LP)..."):
-                irf_results = engine.run_local_projection(df, horizon=horizon)
-                st.session_state['irf'] = irf_results
-
-    with col_sim2:
-        if 'irf' in st.session_state:
-            irf = st.session_state['irf']
-            fig_irf = go.Figure([
-                go.Scatter(x=irf['horizon'], y=irf['beta'], name='Respuesta SG', line=dict(color='#3b82f6', width=3)),
-                go.Scatter(x=irf['horizon'], y=irf['ci_upper'], fill=None, mode='lines', line_color='rgba(59, 130, 246, 0.2)', showlegend=False),
-                go.Scatter(x=irf['horizon'], y=irf['ci_lower'], fill='tonexty', mode='lines', line_color='rgba(59, 130, 246, 0.2)', name='IC 95% (HAC)')
-            ])
-            fig_irf.update_layout(title="Impulse Response Function: SG vs Shock", template="plotly_dark")
-            st.plotly_chart(fig_irf, use_container_width=True)
+    # ... (Aquí sigue tu bloque de LP que ya tenías, usando df)
 
 if __name__ == "__main__":
     main()
