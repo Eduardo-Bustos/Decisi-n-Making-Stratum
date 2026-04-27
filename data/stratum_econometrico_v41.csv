@@ -1,0 +1,30 @@
+import pandas as pd
+
+def finalize_stratum_v41_csv(df):
+    """
+    Optimiza el DataFrame para el ecosistema Stratum Decision.
+    """
+    # 1. Asegurar tipos de datos para evitar errores en Docker/Streamlit
+    df['date'] = pd.to_datetime(df['date'])
+    numeric_cols = ['SG', 'ISI', 'FAI', 'Hurst', 'SRF_weight']
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    
+    # 2. Inyección de la constante tau de Stratum (Abstract SSRN)
+    # Si SG > 0.3492, marcamos una alerta potencial
+    df['threshold_breach'] = (df['SG'].abs() > 0.3492).astype(int)
+    
+    # 3. Orden jerárquico de columnas para legibilidad en el War Room
+    priority_cols = ['date', 'Regime_economic', 'SG', 'ISI', 'FAI', 'threshold_breach']
+    other_cols = [c for c in df.columns if c not in priority_cols]
+    df = df[priority_cols + other_cols]
+    
+    # 4. Exportación optimizada (sin índice para ahorrar espacio en GCS)
+    output_path = "STRATUM_v41_ECONOMETRICO_FINAL.csv"
+    df.to_csv(output_path, index=False, float_format='%.6f')
+    
+    return output_path
+
+# Uso:
+# path = finalize_stratum_v41_csv(tu_dataframe_de_resultados)
